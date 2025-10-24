@@ -36,13 +36,29 @@ PepsiCo, TX, US\\
 \IEEEpeerreviewmaketitle
 
 \section{Introduction}
-Application security program covers a large array of practices setup to protect
-modern application against cyberattacks. Mention a good introduction of application
-security and the different areas like, API cloud security and explain how this
-paper focuses on the scanning part, specifically SAST, DAST, SCA, Secrets and
-SBOM. How modern organization typically scan their assets and how a centralized
-scan factory provided a complete coverage along with other tunable parameters,
-and complete control that is not possible with COTS tools.
+Application security (AppSec) in the modern software landscape encompasses a wide range of domains, including static code analysis, API security, edge and container security,
+AI security, and web application firewalls (WAFs). Modern applications are complex, distributed systems composed of numerous interconnected components and services. Securing each of
+these layers is a daunting task, making Application Security a critical pillar of enterprise security strategy.
+
+A foundational aspect of AppSec is static source code scanning - the process of analyzing source code to detect potential security vulnerabilities before deployment.
+Since source code forms the basis of all applications, identifying and remediating security issues early in the development lifecycle is crucial.
+
+Traditionally, static code analysis has been performed using commercial off-the-shelf (COTS) scanners. These tools inspect application source code to uncover programming flaws
+that could lead to vulnerabilities such as SQL injection, cross-site scripting (XSS), or insecure deserialization. They also perform software composition analysis (SCA) to
+detect vulnerabilities in third-party dependencies and flag license compliance issues, while secrets scanners identify hardcoded credentials within the codebase.
+
+However, effectively operationalizing these scanners at scale presents significant challenges for large organizations. Continuous scanning, correlating results,
+and surfacing actionable findings to the respective code owners remain persistent bottlenecks. A common approach is to embed security scans directly within CI/CD pipelines.
+While this appears natural and convenient, it introduces several operational limitations. Integrating scanners across thousands of repositories requires close
+coordination with multiple DevOps teams, often leading to inconsistencies in scan coverage and configuration drift. Moreover, embedding scans directly in CI/CD pipelines
+limits central control, reduces visibility across projects, and introduces dependencies on individual pipelines’ health and configuration.
+
+To address these challenges, we propose the Centralized AppSec Scan Factory, a cloud-native framework designed to automate, orchestrate,
+and scale application security scanning across enterprise repositories. The system integrates static application security testing (SAST), software
+composition analysis (SCA), and secrets detection into a unified pipeline. By leveraging event-driven orchestration through message queues and on-demand containerized agents,
+the platform dynamically allocates compute resources for scanning tasks while maintaining centralized control, visibility, and reporting.
+This architecture ensures consistent scanning coverage with minimal manual intervention, optimizing both performance and cost efficiency.
+
 \newpage
 \bibliographystyle{IEEEtran}
 \bibliography{references}
