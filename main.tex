@@ -40,7 +40,7 @@ Application security (AppSec) in the modern software landscape encompasses a wid
 AI security, and web application firewalls (WAFs). Modern applications are complex, distributed systems composed of numerous interconnected components and services. Securing each of
 these layers is a daunting task, making Application Security a critical pillar of enterprise security strategy.
 
-A foundational aspect of AppSec is static source code scanning - the process of analyzing source code to detect potential security vulnerabilities before deployment.
+An important aspect of AppSec is static source code scanning - the process of analyzing source code to detect potential security vulnerabilities before deployment.
 Since source code forms the basis of all applications, identifying and remediating security issues early in the development lifecycle is crucial.
 
 Traditionally, static code analysis has been performed using commercial off-the-shelf (COTS) scanners. These tools inspect application source code to uncover programming flaws
@@ -58,6 +58,66 @@ and scale application security scanning across enterprise repositories. The syst
 composition analysis (SCA), and secrets detection into a unified pipeline. By leveraging event-driven orchestration through message queues and on-demand containerized agents,
 the platform dynamically allocates compute resources for scanning tasks while maintaining centralized control, visibility, and reporting.
 This architecture ensures consistent scanning coverage with minimal manual intervention, optimizing both performance and cost efficiency.
+
+\section{Background}
+COTS tools in the application security domain typically provide capabilities for SAST, DAST, SCA, container, API, AI, and secrets scanning. These tools also offer integrations with
+cloud platforms, source code management (SCM) systems, DevOps pipelines, and incident-management solutions. Using these integrations, organizations can automate security scans and
+route findings to the appropriate teams for remediation.
+
+While such integrations can be effective for small organizations with only a handful of development teams, they do not scale well.
+In smaller environments, AppSec responsibilities can be delegated to developers or DevOps teams, and the operational overhead remains manageable even when multiple tools are used for
+different types of scans. This decentralized approach breaks down as the size of the engineering organization grows. As the number of repositories, teams, and toolchains increases,
+maintaining consistent and reliable scanning becomes significantly more challenging. Several problems quickly emerge:
+
+\begin{enumerate}
+\item Managing access and permissions across numerous teams
+\item Enforcing consistent scanning policies and remediation standards
+\item Increasing operational burden on developers and DevOps teams
+\item Creating confusion when multiple scanning tools are used simultaneously
+\item Ensuring full scan coverage across all assets
+\item Prioritizing scans based on risk or business importance
+\end{enumerate}
+
+These challenges are common in large enterprises attempting to establish an effective application security scanning program. Most organizations rely heavily on the
+default integrations provided by COTS tools. However, while these integrations work reasonably well in smaller settings, they often fail to deliver comprehensive coverage in large organizations
+with diverse use cases and heterogeneous development workflows. Existing literature on enterprise-scale AppSec scanning is sparse, and there is limited empirical data on the
+effectiveness of vendor-provided integrations in achieving complete scan coverage.
+
+In our effort to deploy SAST, SCA, and secrets scanning for a Fortune 500 company with over 20,000 repositories, we confronted the same core question: How can we guarantee complete scan
+coverage from the very first day of tool adoption? Each scanner integrates differently with SCM and CI/CD platforms, and many are opinionated regarding scan frequency, prioritization logic,
+and alerting workflows. To overcome these limitations, we designed a centralized “scan factory” architecture capable of orchestrating and managing scans at scale. The remainder
+of this paper details the architecture, implementation, and evaluation of this centralized approach.
+
+\section{Problem Definition}
+
+In this section, we outline the requirements for an effective enterprise-scale Application Security (AppSec) program and explain why the default integrations offered by commercial off-the-shelf (COTS) security scanners are insufficient for achieving organization-wide coverage.
+
+A fundamental objective of any AppSec program is to ensure that all relevant assets are continuously scanned and that identified vulnerabilities are remediated in a timely and consistent manner. A key metric in this process is \textit{scan coverage}, defined as:
+
+\[
+\text{Coverage} = \frac{\text{Number of scanned assets}}{\text{Total number of scannable assets}}.
+\]
+
+For static code analysis, the total number of scannable assets is typically equivalent to the number of source code repositories maintained by the organization. Ideally, every repository should be scanned regularly, with findings reliably surfaced to the appropriate engineering teams.
+
+Many COTS AppSec tools provide native integrations with source code management (SCM) platforms to support automated and periodic scanning. While these integrations reduce the operational burden on development teams, our experience indicates several critical limitations that prevent them from meeting the needs of a large enterprise. Specifically, default integrations often:
+
+\begin{itemize}
+    \item fail to scan all branches of a repository,
+    \item restrict the ability to configure scan frequency,
+    \item do not automatically import new or recently created repositories,
+    \item lack support for on-demand scanning (e.g., pre-production checks),
+    \item cannot trigger scans based on custom business workflows,
+    \item provide incomplete or inconsistent integrations with platforms used across the organization,
+    \item lack flexibility in defining how findings should be ranked, filtered, or interpreted,
+    \item prevent customization of scan strategies,
+    \item offer no mechanism to prioritize scanning targets based on business risk or operational needs.
+\end{itemize}
+
+When multiple COTS tools are used for SAST, SCA, secrets scanning, or other AppSec functions, these limitations compound. Integrations become fragmented, findings remain siloed, and the organization is ultimately constrained by the overlap---or lack thereof---among the integrations supported by each tool. This leads to gaps in coverage, inconsistent scanning practices, and ineffective remediation pipelines, especially when vulnerabilities are not routed to the appropriate teams.
+
+From this assessment, it becomes clear that the default integrations provided by COTS scanners are not sufficient for large organizations. Achieving complete and consistent AppSec coverage requires a more flexible and centralized approach---one that aligns with enterprise workflows, supports scalable automation, and ensures comprehensive visibility across all assets.
+
 
 \newpage
 \bibliographystyle{IEEEtran}
