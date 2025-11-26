@@ -6,8 +6,7 @@
 \fi
 \ifCLASSINFOpdf
    \usepackage[pdftex]{graphicx}
-\else
-\fi
+\else \fi
 \usepackage{url}
 \usepackage{amsmath}
 
@@ -172,12 +171,12 @@ and should be tailored to meet their unique operational and security requirement
 \section{Evaluation}
 
 In this section, we compare three distinct approaches to implementing an application security scanning program -
-\begin{itemize}
+\begin{enumerate}
     \item The traditional decentralized model, where different types of scans are performed by separate COTS tools integrated into CI/CD pipelines and maintained
         by developers or DevOps engineers;  
     \item The default-integration model, where organizations rely solely on the built-in connectors and automation features provided by each COTS tool; and  
     \item Our proposed centralized scan factory architecture.
-\end{itemize}
+\end{enumerate}
 
 The traditional pipeline-based approach places significant operational responsibility on development teams, who must configure, maintain, and
 troubleshoot scanner integrations while also interpreting scan results. The default-integration approach reduces this burden but is limited by the features and constraints
@@ -191,7 +190,15 @@ We analyze how each approach performs in scenarios involving scan coverage, oper
 Additionally, we provide case studies drawn from a Fortune 500 environment to illustrate how each approach behaves in practice and to highlight the specific advantages
 of the centralized scan factory design.
 
- 
+\subsection{Case Study: Distributed CI/CD scanning}
+CI/CD pipelines often feel like the most natural place to run security scans—whether static code analysis or container image scanning. The idea makes intuitive sense: shift left, catch issues early, and stop vulnerable code before it ever reaches the main branch or before an insecure image is pushed to a registry.
+
+While this approach works well in smaller organizations, we ran into several challenges at enterprise scale. In an environment with tens of thousands of repositories, hundreds of thousands of branches, and thousands of pipelines, it quickly became difficult to maintain consistent visibility into what was actually being scanned. Relying on individual teams to correctly configure scan tasks, apply them to the right pipelines and branches, and enforce “break-the-build” rules for critical findings proved unreliable.
+
+These issues become even more pronounced when every team works differently. Some teams have dedicated DevOps support, others do not; some development is handled entirely by contractors. Scan tasks frequently failed due to configuration issues, and in many cases developers simply disabled the tasks to keep their pipelines running. This distributed, self-implemented model also pushed the burden of triaging and remediating findings entirely onto developers, leaving the AppSec team with limited control and minimal oversight.
+
+Access management to the various scanning tools added an additional layer of complexity. Each development team needed access, creating ongoing administrative overhead and introducing new questions around authentication, authorization, and data access boundaries. Developers also had to learn, manage, and interact with multiple different security tools—adding friction without guaranteeing consistent security coverage.
+
 \subsection{Case Study: NPM shai-hulud}
 
 \section{question for COTS scanners}
