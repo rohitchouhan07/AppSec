@@ -12,7 +12,7 @@
 
 
 \begin{document}
-\title{Centralized Scan Factory for Application Security}
+\title{Centralized Scan Factory for Staic Code Scanning}
 \author{
 \IEEEauthorblockN{Rohit Chouhan}
 \IEEEauthorblockA{Application Security Engineer\\
@@ -36,123 +36,97 @@ PepsiCo, TX, US\\
 \IEEEpeerreviewmaketitle
 
 \section{Introduction}
-Application security (AppSec) in the modern software landscape encompasses a wide range of domains, including static code analysis, API security, edge and container security,
-AI security, and web application firewalls (WAFs). Modern applications are complex, distributed systems composed of numerous interconnected components and services. Securing each of
-these layers is a daunting task, making Application Security a critical pillar of enterprise security strategy.
+Application Security (AppSec) in the modern software landscape spans a broad range of domains—including source code analysis, API and edge security, container security, AI security, and web application firewalls (WAFs). Today’s applications are complex, distributed systems composed of numerous interconnected components and services. Securing each of these layers is increasingly challenging, making AppSec a foundational pillar of enterprise security strategy and a critical component of Attack Surface Management (ASM).
 
-An important aspect of AppSec is static source code scanning - the process of analyzing source code to detect potential security vulnerabilities before deployment.
-Since source code forms the basis of all applications, identifying and remediating security issues early in the development lifecycle is crucial.
+Among the core responsibilities of an AppSec program is source code analysis: the process of examining application code to detect potential security vulnerabilities early in the development lifecycle. Since source code forms the basis of all software, identifying and remediating weaknesses at this stage is one of the most effective ways to reduce downstream risk. Traditionally, organizations rely on Commercial Off-The-Shelf (COTS) scanners to perform Static Application Security Testing (SAST), uncovering flaws such as SQL injection, cross-site scripting (XSS), insecure deserialization, and other high-impact vulnerabilities. These scanners also provide Software Composition Analysis (SCA) to detect vulnerabilities and license issues in third-party dependencies, and increasingly include capabilities to identify hardcoded secrets such as API keys, client credentials, and passwords.
 
-Traditionally, static code analysis has been performed using commercial off-the-shelf (COTS) scanners. These tools inspect application source code to uncover programming flaws
-that could lead to vulnerabilities such as SQL injection, cross-site scripting (XSS), or insecure deserialization. They also perform software composition analysis (SCA) to
-detect vulnerabilities in third-party dependencies and flag license compliance issues, while secrets scanners identify hardcoded credentials within the codebase.
+While the market offers a wide variety of SAST, SCA, and secrets-scanning tools—each with integration options for source code managers, CI/CD systems, and findings platforms—large organizations face significant challenges in operationalizing them. In environments with diverse development teams, heterogeneous tooling, and thousands of repositories, ensuring that scanners consistently target the correct assets and maintain adequate coverage is non-trivial. Continuous scanning, correlating results, routing findings to the right code owners, and preventing configuration drift are persistent bottlenecks. Despite the prevalence of these challenges, there is limited systematized knowledge or research on effective enterprise-scale integration patterns. This paper aims to bridge that gap by presenting common approaches, lessons learned, and practical considerations drawn from implementing these scanning systems in a Fortune 500 enterprise. Our focus is limited to SAST, SCA, secrets scanning.
 
-However, effectively operationalizing these scanners at scale presents significant challenges for large organizations. Continuous scanning, correlating results,
-and surfacing actionable findings to the respective code owners remain persistent bottlenecks. A common approach is to embed security scans directly within CI/CD pipelines.
-While this appears natural and convenient, it introduces several operational limitations. Integrating scanners across thousands of repositories requires close
-coordination with multiple DevOps teams, often leading to inconsistencies in scan coverage and configuration drift. Moreover, embedding scans directly in CI/CD pipelines
-limits central control, reduces visibility across projects, and introduces dependencies on individual pipelines’ health and configuration.
+We will be analyzing a few case studies to understand a couple of commonly used stategies and why they are unable to provide a complete integration and coverage for a large enterprise with diverse and complex
+workflows. To address these challenges, we will propose the Centralized AppSec Scan Factory design--a cloud-native framework designed to automate, orchestrate, and scale application security scanning across complex enterprise environments. The system consolidates SAST, SCA, and secrets scanning into a unified, centrally managed workflow. Leveraging event-driven orchestration through message queues and on-demand containerized scan agents, the platform dynamically allocates compute resources, maintains consistent configuration, and provides unified visibility and reporting. This architecture ensures reliable, scalable, and cost-efficient scanning coverage with minimal manual intervention, enabling organizations to operationalize AppSec at enterprise scale while addressing the gaps of current approaches and makes our systems ready for the evolving attack vectors on
+the supply chain front. The idea for a centralized scan factory was also presented in SANS Sec 540.
 
-To address these challenges, we propose the Centralized AppSec Scan Factory, a cloud-native framework designed to automate, orchestrate,
-and scale application security scanning across enterprise repositories. The system integrates static application security testing (SAST), software
-composition analysis (SCA), and secrets detection into a unified pipeline. By leveraging event-driven orchestration through message queues and on-demand containerized agents,
-the platform dynamically allocates compute resources for scanning tasks while maintaining centralized control, visibility, and reporting.
-This architecture ensures consistent scanning coverage with minimal manual intervention, optimizing both performance and cost efficiency.
+We will conclude this paper by proposing a few new approaches for achieving and doing static code scanning, and container scanning in larger organizations.
 
 \section{Background}
-COTS tools in the application security domain typically provide capabilities for SAST, DAST, SCA, container, API, AI, and secrets scanning. These tools also offer integrations with
-cloud platforms, source code management (SCM) systems, DevOps pipelines, and incident-management solutions. Using these integrations, organizations can automate security scans and
-route findings to the appropriate teams for remediation.
+All applications begin with source code. Any vulnerabilities present in the source code will propagate downstream into the application built from it. Source code is typically stored and managed
+in Source Code Managers (SCMs), which modern enterprises use to centralize code and support collaborative development. A codebase begins its journey on a developer’s workstation within an Code Editor or an
+Integrated Development Environment (IDE), after which it
+is committed to an SCM. From there, CI/CD pipelines retrieve the code, run automated tests and checks, and ultimately deploy the built application. Because
+of this lifecycle, IDEs and CI/CD pipelines are the two primary points where static code analysis scans can be introduced.
 
-While such integrations can be effective for small organizations with only a handful of development teams, they do not scale well.
-In smaller environments, AppSec responsibilities can be delegated to developers or DevOps teams, and the operational overhead remains manageable even when multiple tools are used for
-different types of scans. This decentralized approach breaks down as the size of the engineering organization grows. As the number of repositories, teams, and toolchains increases,
-maintaining consistent and reliable scanning becomes significantly more challenging. Several problems quickly emerge:
+Static code analysis \cite{static_code_analysis} does not require code compilation and can be performed before packaging or building the application. Although certain SCA checks require a build step,
+these cases are exceptions rather than the norm. Consequently, a widely adopted strategy is embedding security scans directly into CI/CD pipelines. This is commonly done by adding a scan
+task before the build stage, or by triggering scans on pull-request events to do scan on the new code that is being added, providing early detection of vulnerabilities.
+Similarily, static code scan plugin can be setup on developers's IDEs to enable scanning on workstations.
+
+However, while intuitive, this approach introduces significant operational constraints. Setting up CI/CD scanning or IDE scan plugin on thousands on pipelines and workstations
+demands extensive coordination with DevOps teams and often results in inconsistent coverage and configuration drift. Additionally, this approach delegates the responsibility and controls of scanning
+to the teams - relying on individual teams to setup, run, maintain, and remediate security findings. This reduces enterprise-wide visibility, and ties scanning reliability to the stability and
+configuration of each CI/CD workflow or IDE plugin configuration.
+In smaller environments, AppSec responsibilities can be delegated to developers or DevOps engineers with manageable overhead, even when multiple tools are used for different scan types.
+This decentralized model begins to break down as the scale of the engineering organization increases. As the number of repositories, teams, and toolchains grows, ensuring consistent and reliable scanning
+becomes significantly more challenging. Common problems include:
 
 \begin{enumerate}
 \item Managing access and permissions across numerous teams
 \item Enforcing consistent scanning policies and remediation standards
 \item Increasing operational burden on developers and DevOps teams
-\item Creating confusion when multiple scanning tools are used simultaneously
-\item Ensuring full scan coverage across all assets
-\item Prioritizing scans based on risk or business importance
+\item Creating confusion when multiple scanning tools coexist
+\item Ensuring full and accurate scan coverage across all code assets
+\item Prioritizing scans based on risk or business impact
 \end{enumerate}
 
-These challenges are common in large enterprises attempting to establish an effective application security scanning program. Most organizations rely heavily on the
-default integrations provided by COTS tools. However, while these integrations work reasonably well in smaller settings, they often fail to deliver comprehensive coverage in large organizations
-with diverse use cases and heterogeneous development workflows. Existing literature on enterprise-scale AppSec scanning is sparse, and there is limited empirical data on the
-effectiveness of vendor-provided integrations in achieving complete scan coverage.
+Another common approach relies on the native integrations offered by COTS scanners. These integrations typically allow connections to SCMs, container registries, findings-management systems,
+and Security Information and Event Management (SIEM) platforms. In this model, the scanner automatically clones repositories and analyzes them for vulnerabilities.
+While effective in theory, COTS platforms often impose rigid opinions on scan frequency, which code branch gets scanned, parallelization, on-demand execution, and findings lifecycle workflows.
+In large enterprises with diverse development patterns and complex DevOps processes, these limitations frequently prevent the scanners from achieving complete coverage against new supply chain threats.
+We identified the following limitations with them:
 
-In our effort to deploy SAST, SCA, and secrets scanning for a Fortune 500 company with over 20,000 repositories, we confronted the same core question: How can we guarantee complete scan
-coverage from the very first day of tool adoption? Each scanner integrates differently with SCM and CI/CD platforms, and many are opinionated regarding scan frequency, prioritization logic,
-and alerting workflows. To overcome these limitations, we designed a centralized “scan factory” architecture capable of orchestrating and managing scans at scale. The remainder
-of this paper details the architecture, implementation, and evaluation of this centralized approach.
+\begin{enumerate}
+    \item Ability to select what code branches to scan
+    \item Scan frequency adjustment
+    \item Auto-import newly added repositories
+    \item On demand scanning
+    \item Custom scan triggers based on business rules
+    \item Customizations for security findings
+\end{enumerate}
 
-\section{Problem Definition}
+\section{Design: Centralized Static Code Scanning}
 
-In this section, we outline the requirements for an effective enterprise-scale AppSec program and explain why the default integrations offered by COTS security scanners are
-insufficient for achieving organization-wide coverage.
+In the previous section, we outlined two common approaches to implementing static code scanning and discussed their inherent limitations—particularly within large enterprises that operate diverse DevOps workflows, toolchains, and development practices. In this section, we introduce the design of our proposed solution, a centralized scanning architecture, and in the following section, we present case studies demonstrating how this design effectively resolves the shortcomings of the earlier approaches.
 
-A fundamental objective of any AppSec program is to ensure that all relevant assets are continuously scanned and that identified vulnerabilities are remediated in a timely
-and consistent manner. A key metric in this process is \textit{scan coverage}, defined as:
+A security scanning system fundamentally consists of four stages: identifying assets to be scanned, executing the scans, generating findings, and driving the remediation of those findings. Surfacing vulnerabilities is only part of the objective; the true purpose of scanning is to reduce risk by enabling timely and effective remediation. With this in mind, we begin by defining the key principles guiding our design.
 
-\[
-    \text{Coverage} = \frac{\text{Number of scanned assets}}{\text{Total number of scannable asset}}
-\]
+\subsection{Principles}
+\begin{enumerate}
+\item Automated scanning
+\item Defined attack surface coverage
+\item Self-service access for stakeholders
+\item Tool-agnostic architecture
+\item Modular and extensible design
+\item Customizable findings management workflows
+\item Comprehensive findings-management dashboard
+\end{enumerate}
 
-For static code analysis, the total number of scannable assets is typically equivalent to the number of source code repositories maintained by the organization.
-Ideally, every repository should be scanned regularly, with findings reliably surfaced to the appropriate engineering teams.
-
-Many COTS AppSec tools provide native integrations with SCM platforms to support automated and periodic scanning. While these integrations reduce the operational burden
-on development teams, our experience indicates several critical limitations that prevent them from meeting the needs of a large enterprise. Specifically, default integrations often:
-
-\begin{itemize}
-    \item fail to scan all branches of a repository,
-    \item run an complete scan on a zero-day vulnerability,
-    \item restrict the ability to configure scan frequency,
-    \item do not automatically import new or recently created repositories,
-    \item lack support for on-demand scanning (e.g., pre-production checks),
-    \item cannot trigger scans based on custom business workflows,
-    \item provide incomplete or inconsistent integrations with platforms used across the organization,
-    \item lack flexibility in defining how findings should be ranked, filtered, or interpreted,
-    \item prevent customization of scan strategies,
-    \item offer no mechanism to prioritize scanning targets based on business risk or operational needs.
-\end{itemize}
-
-When multiple COTS tools are used for SAST, SCA, secrets scanning, or other AppSec functions, these limitations compound. Integrations become fragmented,
-findings remain siloed, and the organization is ultimately constrained by the overlap---or lack thereof---among the integrations supported by each tool.
-This leads to gaps in coverage, inconsistent scanning practices, and ineffective remediation pipelines, especially when vulnerabilities are not routed to the appropriate teams.
-
-From this assessment, it becomes clear that the default integrations provided by COTS scanners are not sufficient for large organizations. Achieving complete
-and consistent AppSec coverage requires a more flexible and centralized approach---one that aligns with enterprise workflows, supports scalable automation, and
-ensures comprehensive visibility across all assets.
-
-\section{Design}
-An enterprise-scale scan factory must address the shortcomings of default COTS integrations while enabling centralized, automated, and reliable application security
-scanning at scale. Unlike decentralized models— where individual development teams configure and maintain their own scans - a scan factory centralizes orchestration,
-monitoring, and policy enforcement to ensure complete coverage and consistency. A cetralized scan factory will have the following components -
+To realize these principles, a centralized scan factory must incorporate the following core components:
 
 \subsection{Inventory Service}
-This service will help the system maintain an up-to-date inventory of all scannable assets, such as source code repositories, container images,
-APIs, and infrastructure-as-code artifacts. This requires continuous synchronization with SCMs and other asset stores. Newly created repositories
-must be automatically discovered and added to the inventory database.
+The inventory service maintains a continuously updated list of all scannable assets, including source code repositories, container images, APIs, and infrastructure-as-code artifacts. This requires ongoing synchronization with SCMs and other asset stores. Newly created or modified repositories must be automatically discovered and added to the inventory to ensure complete and consistent coverage.
 
 \subsection{Scan Orchestration Service}
-This service is responsible for scheduling and launching scans on the assets discovered by the inventory system. Scans may be triggered event-based or executed on a
-configurable schedule, depending on organizational requirements. All scheduled scans can be placed into a managed queue to ensure orderly, reliable processing at scale.
+The scan orchestration service schedules and initiates scans for assets managed by the inventory service. Scans may be triggered by events—such as code commits or pull requests—or executed according to a configurable schedule. All scan requests are placed into a managed queue to guarantee orderly and scalable processing.
 
-In addition, the scan orchestration service enforces the organization’s scanning policy - such as determining which assets should be scanned based on their last update time or
-other priority criteria - ensuring consistent and policy-driven scan coverage across the environment.
+In addition, the orchestration service enforces enterprise scanning policies, including rules that determine which assets should be scanned based on factors such as update recency, business criticality, or risk classification. This ensures consistent and policy-driven coverage across the organization.
 
 \subsection{Scan Service}
-This will be main service which will pick up messages from the queue and launch scans of them by making using of a COTS scanner.
-The architecture of this service should be such that that COTS scanner can easily be replace by any other scanner as and when need arises.
+The scan service consumes queued scan requests and performs the actual scanning using the organization’s chosen COTS scanning tools. Its architecture is intentionally scanner-agnostic and modular, enabling seamless replacement or integration of different scanning vendors as organizational needs evolve. This design reduces vendor lock-in and future-proofs the system.
 
 \subsection{Security Findings Processing}
-Once a scan is completed, the resulting security findings must be processed, normalized, and enriched before being forwarded to the organization’s centralized
-findings management system. Centralizing findings ensures consistent formatting, prioritization, and categorization, enabling them to be routed to the appropriate asset
-or code owners with the necessary context for effective remediation. This unified workflow supports timely risk reduction across the organization and provides clear
-visibility into the overall security posture.
+Upon completion of a scan, the resulting findings are processed, normalized, and enriched before being forwarded to the centralized findings-management platform. Standardization ensures uniform formatting, severity classification, and prioritization across different scanners and asset types. Enriched findings can then be delivered to asset or code owners with actionable context, supporting effective remediation and enabling meaningful enterprise-wide risk reduction.
+
+\subsection{Findings Management Dashboard}
+The findings management dashboard serves as a role-based, self-service interface for developers, DevOps teams, security engineers, and leadership. It provides a single pane of glass for all aspects of the centralized scanning ecosystem—including asset inventories, scan schedules, findings, risk trends, and remediation progress. Developers gain visibility into the security posture of their repositories, while leadership gains insight into overall organizational risk and compliance.
 
 \section{Implementation}
 The centralized scan factory can be implemented as a collection of modular services, each responsible for one of the core functions described in the section above.
@@ -199,10 +173,67 @@ These issues become even more pronounced when every team works differently. Some
 
 Access management to the various scanning tools added an additional layer of complexity. Each development team needed access, creating ongoing administrative overhead and introducing new questions around authentication, authorization, and data access boundaries. Developers also had to learn, manage, and interact with multiple different security tools—adding friction without guaranteeing consistent security coverage.
 
-\subsection{Case Study: NPM shai-hulud}
+\subsection{Case Study: xz-utils}
+In February 2024, a malicious backdoor was discovered in the Linux build of the xz utility bundled within the liblzma library in versions 5.6.0 and 5.6.1. This backdoor allowed an attacker possessing
+a specific Ed448 private key to gain remote code execution through OpenSSH on affected Linux systems. Because many Linux distributions ship xz-utils as part of their core utilities
+and because containerization commonly uses these distributions as base images, the vulnerability had the potential to propagate into container images and, ultimately, running containers.
 
-\section{question for COTS scanners}
+When the incident surfaced, we needed to quickly determine whether any container images running in our environment relied on vulnerable base images. However, within our organization, container
+image scanning was performed in a fully decentralized manner using Snyk pipeline tasks. Development and DevOps teams were responsible for configuring and running their own scans, deciding what
+to scan and when, leaving the AppSec team with no centralized control or visibility.
+
+During zero-day events like this, the organization’s ability to assess exposure depends on two fundamental factors:
+
+\begin{enumerate}
+\item Whether we have a complete and accurate inventory of all deployed assets.
+\item Whether all potentially vulnerable assets have been scanned.
+\end{enumerate}
+
+Without a reliable asset inventory, we cannot confidently assert that we are not exposed. This creates a false sense of security, which is especially dangerous in a rapidly evolving zero-day scenario.
+In a decentralized model, ensuring that every team has configured their pipeline scans correctly is difficult even in smaller organizations. At enterprise scale, it becomes nearly impossible.
+
+Zero-day incidents typically require ad-hoc rescans of all potentially affected assets because many commercial scanning tools add detection capabilities only after the vulnerability is disclosed.
+If scans completed before the tool’s vulnerability database was updated, the earlier results would be incomplete. In a decentralized setup, the only way to address this would be to communicate with every DevOps
+team and request them to re-run their pipelines-a slow, unreliable, and operationally heavy process. During the xz-utils incident, we had no firm understanding of how many production images were actually
+being scanned across the organization.
+
+Organizations that rely on registry-level integrations with commercial tools (COTS) are in a better position because they can automatically detect and scan images stored in the registries.
+If all production images reliably pass through those registries, the tool can provide a near-complete inventory and allow targeted scans for newly disclosed vulnerabilities. However, this approach still has
+significant limitations. In our experience with several leading container security tools, we encountered issues such as:
+
+\begin{enumerate}
+\item No automatic import of new images pushed to repositories.
+\item Scanning restricted only to the top N most recent or most used images.
+\item No capability to trigger an ad-hoc scan across all images in use.
+\end{enumerate}
+
+CNAPP and CSPM platforms that integrate directly with cloud tenants offer improved visibility by identifying container images running as part of cloud workloads and scanning them for vulnerabilities.
+However, these tools can only scan what they can see. Shadow IT, on-prem environments, and unmanaged deployments frequently fall outside their visibility. Additionally, AppSec programs are inherently
+limited by the feature sets and opinionated workflows of these tools. Customizing scan frequency, discovery intervals, or integrating findings with external systems such as the ServiceNow
+Vulnerability Response module can be rigid, inconsistent, or operationally cumbersome.
+
+\subsection{Case Study: NPM supply chain attacks}
+The recent surge in software supply chain attacks, particularly the ongoing Shai-Hulud NPM attacks highlights the growing prevalence of malicious packages distributed through public package managers.
+These attacks reinforce the need for organizations to maintain complete visibility into all third-party dependencies across their entire software ecosystem.
+Unlike traditional vulnerabilities, supply chain attacks can compromise any machine that clones a repository and installs dependencies, meaning exposure is not limited to deployed applications.
+As a result, scanning only the default branch, as most COTS scanners do - is insufficient.
+
+This is where our centralized AppSec Scan Factory demonstrates significant strength. Leveraging this system, we were able to scan every branch across all repositories within 24 hours,
+giving us a comprehensive inventory of all packages in use across the organization. This visibility is critical because the threat is no longer isolated to production builds;
+even installing vulnerable dependencies from non-default branches can lead to compromised developer machines, leaked secrets, and downstream breaches.
+
+With a centralized scanning model, the Inventory Service maintains a complete catalog of all organizational assets. The Scan Orchestration Service, fully controlled by the AppSec team,
+can be configured to scan every branch of every repository, something not feasible in a decentralized approach or with scanner-hosted compute. The actual scanning is still performed using the COTS scanner,
+but instead of relying on the vendor’s limited cloud capacity, we run scans on our own scalable infrastructure, enabling us to execute hundreds of scans in parallel and bypass the constraints of standard SAST offerings.
+
+Once scans are completed, the centralized pipeline also ensures that findings flow directly into the Centralized Findings Management System (CFMS). Since we control the ingestion process,
+we can tag these findings distinctly to support rapid identification, improved reporting, and streamlined remediation workflows. This greatly accelerates the organization’s ability
+to assess and respond to zero-day supply chain threats.
+
+\section{Question for COTS scanners}
 Why should we trust them with our data, who is scanning the scanner, closed-source, scan as a library.
+
+\section{Scan as a Library: SaaL}
 
 \newpage
 \bibliographystyle{IEEEtran}
