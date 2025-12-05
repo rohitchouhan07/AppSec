@@ -94,39 +94,70 @@ We identified the following limitations with them:
 
 \section{Design: Centralized Static Code Scanning}
 
-In the previous section, we outlined two common approaches to implementing static code scanning and discussed their inherent limitations—particularly within large enterprises that operate diverse DevOps workflows, toolchains, and development practices. In this section, we introduce the design of our proposed solution, a centralized scanning architecture, and in the following section, we present case studies demonstrating how this design effectively resolves the shortcomings of the earlier approaches.
+In the previous section, we outlined two common approaches to implementing static code scanning and discussed their inherent limitations, particularly within large enterprises that operate
+diverse DevOps workflows, toolchains, and development practices. In this section, we introduce the design of our proposed solution, a centralized scanning architecture,
+and in the following section, we present case studies demonstrating how this design effectively resolves the shortcomings of the earlier approaches.
 
-A security scanning system fundamentally consists of four stages: identifying assets to be scanned, executing the scans, generating findings, and driving the remediation of those findings. Surfacing vulnerabilities is only part of the objective; the true purpose of scanning is to reduce risk by enabling timely and effective remediation. With this in mind, we begin by defining the key principles guiding our design.
+A security scanning system fundamentally consists of three stages: identifying assets to be scanned, executing the scans, and generating findings. Driving the remediation of those findings is the next
+most important step, although not directly part of the scanning system but this will what drives the risk enterprise risk down as the true purpose of scanning is to reduce risk by enabling timely and
+effective remediation. With this in mind, we begin by defining the key features that should be should be offered by our system:
 
-\subsection{Principles}
+\subsection{Core Features}
 \begin{enumerate}
 \item Automated scanning
-\item Defined attack surface coverage
+\item Deterministic scan coverage
 \item Self-service access for stakeholders
-\item Tool-agnostic architecture
-\item Modular and extensible design
+\item Tool-agnostic and extensible architecture
 \item Customizable findings management workflows
 \item Comprehensive findings-management dashboard
 \end{enumerate}
 
-To realize these principles, a centralized scan factory must incorporate the following core components:
+Our proposed system will be composed of multiple components, where each components will be responsible for one logical thing and there will be seperation of concerns between different components or subsystems.
+This architecture ensures that faults in one system are isolated from other components. We will be going over each component of our system and explain its responsibilities in details below.
 
 \subsection{Inventory Service}
-The inventory service maintains a continuously updated list of all scannable assets, including source code repositories, container images, APIs, and infrastructure-as-code artifacts. This requires ongoing synchronization with SCMs and other asset stores. Newly created or modified repositories must be automatically discovered and added to the inventory to ensure complete and consistent coverage.
+For any scan service the first step is to get an inventory of all the assets that needs to be scanned. In case of static code scanning the, the inventory service should have access to the SCMs and all
+the repositories. Knowing the complete inventory is very essential for any kind of security scanning, the total number of scannable assets will give you what is commonly known as denominator and the number
+of assets that you are able to scan is the numerator and the ratio of these two will give us our scan coverage.
+Obviously there are more nuances to this, as you would not want to scan everything that exists in your SCM, as some of the repositories might be old, never deployed, or deprecated, in which case you will
+subtract that from the denominator. The denominator should give us the total number of scannable assets, and the numerator should tell us the number of assets from the denominator that got scanned successfully.
+
+This service should have be able to run on a periodic schedule so that it can keep an updated record of all the repositories, branches, commits etc. This information can be useful in doing a priority
+based scanning.
 
 \subsection{Scan Orchestration Service}
-The scan orchestration service schedules and initiates scans for assets managed by the inventory service. Scans may be triggered by events—such as code commits or pull requests—or executed according to a configurable schedule. All scan requests are placed into a managed queue to guarantee orderly and scalable processing.
+The scan orchestration service schedules and initiates scans for assets managed by the inventory service. The scans can be scheduled based on the repository metadata - last commit time, number of committer,
+last scan time. The orchestration service can be designed in a way that is capable of creating scan messages and putting them on a queue - which will be consumed by the scan service.
 
 In addition, the orchestration service enforces enterprise scanning policies, including rules that determine which assets should be scanned based on factors such as update recency, business criticality, or risk classification. This ensures consistent and policy-driven coverage across the organization.
 
+This service is also to supposed to run on some schedule - as it will be our consumer of scan
+requests.
+
 \subsection{Scan Service}
-The scan service consumes queued scan requests and performs the actual scanning using the organization’s chosen COTS scanning tools. Its architecture is intentionally scanner-agnostic and modular, enabling seamless replacement or integration of different scanning vendors as organizational needs evolve. This design reduces vendor lock-in and future-proofs the system.
+The scan service consumes queued scan requests and performs the actual scanning using the 
+organization’s chosen COTS scanning tools. Its architecture is intentionally scanner-agnostic and
+modular, enabling seamless replacement or integration of different scanning vendors as
+organizational needs evolve. This design reduces vendor lock-in and future-proofs the system.
+
+This service needs to be scalable since it is the consumer of scan requests. As the number
+of requests in the queue increases the service should be able to scale up to run multiple scans
+in parallel to process the scheduled scan in a reasonable amount of time.
 
 \subsection{Security Findings Processing}
 Upon completion of a scan, the resulting findings are processed, normalized, and enriched before being forwarded to the centralized findings-management platform. Standardization ensures uniform formatting, severity classification, and prioritization across different scanners and asset types. Enriched findings can then be delivered to asset or code owners with actionable context, supporting effective remediation and enabling meaningful enterprise-wide risk reduction.
 
+This service should be a modular enough to support sending findings to various platforms.
+
 \subsection{Findings Management Dashboard}
-The findings management dashboard serves as a role-based, self-service interface for developers, DevOps teams, security engineers, and leadership. It provides a single pane of glass for all aspects of the centralized scanning ecosystem—including asset inventories, scan schedules, findings, risk trends, and remediation progress. Developers gain visibility into the security posture of their repositories, while leadership gains insight into overall organizational risk and compliance.
+The findings management dashboard serves as a role-based, self-service interface for developers, DevOps teams, security engineers, managers, and leadership. It provides a single pane of glass
+into all aspects of the centralized scanning ecosystem - including asset inventories, scan schedules, security findings, risk trends, and remediation progress.
+
+Developers and DevOps teams can easily view the security posture of their repositories and track remediation work, while security teams gain visibility into systemic risks and scanning coverage. Leadership benefits
+from high-level insights into organizational risk, compliance status, and overall program performance.
+
+This dashboard can be implemented in a variety of different ways and depends on the organization's preference. It can be a bespoke dashboard make using front-end technologies or it could be made using
+platforms like ServiceNow, PowerBI, Quicksight etc.
 
 \section{Implementation}
 The centralized scan factory can be implemented as a collection of modular services, each responsible for one of the core functions described in the section above.
@@ -165,9 +196,11 @@ Additionally, we provide case studies drawn from a Fortune 500 environment to il
 of the centralized scan factory design.
 
 \subsection{Case Study: Distributed CI/CD scanning}
-CI/CD pipelines often feel like the most natural place to run security scans—whether static code analysis or container image scanning. The idea makes intuitive sense: shift left, catch issues early, and stop vulnerable code before it ever reaches the main branch or before an insecure image is pushed to a registry.
+CI/CD pipelines often feel like the most natural place to run security scans-whether static code analysis or container image scanning. The idea makes intuitive sense: shift left,
+catch issues early, and stop vulnerable code before it ever reaches the main branch or before an insecure image is pushed to a registry.
 
-While this approach works well in smaller organizations, we ran into several challenges at enterprise scale. In an environment with tens of thousands of repositories, hundreds of thousands of branches, and thousands of pipelines, it quickly became difficult to maintain consistent visibility into what was actually being scanned. Relying on individual teams to correctly configure scan tasks, apply them to the right pipelines and branches, and enforce “break-the-build” rules for critical findings proved unreliable.
+While this approach works well in smaller organizations, we ran into several challenges at enterprise scale. In an environment with tens of thousands of repositories,
+hundreds of thousands of branches, and thousands of pipelines, it quickly became difficult to maintain consistent visibility into what was actually being scanned. Relying on individual teams to correctly configure scan tasks, apply them to the right pipelines and branches, and enforce “break-the-build” rules for critical findings proved unreliable.
 
 These issues become even more pronounced when every team works differently. Some teams have dedicated DevOps support, others do not; some development is handled entirely by contractors. Scan tasks frequently failed due to configuration issues, and in many cases developers simply disabled the tasks to keep their pipelines running. This distributed, self-implemented model also pushed the burden of triaging and remediating findings entirely onto developers, leaving the AppSec team with limited control and minimal oversight.
 
@@ -230,7 +263,7 @@ Once scans are completed, the centralized pipeline also ensures that findings fl
 we can tag these findings distinctly to support rapid identification, improved reporting, and streamlined remediation workflows. This greatly accelerates the organization’s ability
 to assess and respond to zero-day supply chain threats.
 
-\section{Question for COTS scanners}
+\section{Conclusion}
 Why should we trust them with our data, who is scanning the scanner, closed-source, scan as a library.
 
 \section{Scan as a Library: SaaL}
