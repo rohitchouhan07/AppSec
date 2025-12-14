@@ -25,4 +25,12 @@
 {OWASP Foundation}, ``Owasp static code analysis,''
   \url{https://owasp.org/www-community/controls/Static_Code_Analysis}.
 
+\bibitem{sec_540}
+{SANS}, ``Sec540: Cloud native security and devsecops automation,''
+  \url{https://www.sans.org/cyber-security-courses/cloud-native-security-devsecops-automation}.
+
+\bibitem{xz_utils_backdoor}
+{Wikipedia}, ``Xz utils backdoor,''
+  \url{https://en.wikipedia.org/wiki/XZ_Utils_backdoor}.
+
 \end{thebibliography}
